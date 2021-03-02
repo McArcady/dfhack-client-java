@@ -12,5 +12,6 @@ public class RemoteLegendsTest {
 		var lrb = RemoteLegends.ListRequest.newBuilder();
 		var buf = cli.call("GetWorldLandmassList", lrb.build(), "WorldLandmassList");
 		System.out.println(RemoteLegends.WorldLandmassList.parseFrom(buf).getList(0).toString());
+		cli.disconnect();
 	}
 }

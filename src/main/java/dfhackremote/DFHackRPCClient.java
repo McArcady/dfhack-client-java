@@ -23,17 +23,17 @@ import dfproto.CoreProtocol.CoreBindRequest.Builder;
  */
 public class DFHackRPCClient {
 
-	private static final int DFHACK_RPC_PORT_DEFAULT = 5000;
+	public static final int DFHACK_RPC_PORT_DEFAULT = 5000;
 	private AsynchronousSocketChannel socket = null;
 	private String plugin = null;
 	
-	enum ServerReplyCode {
+	enum ReplyCode {
 	    RPC_REPLY_RESULT (-1),
 	    RPC_REPLY_FAIL   (-2),
 	    RPC_REPLY_TEXT   (-3),
 	    RPC_REQUEST_QUIT (-4);
 	    private final int id;
-		ServerReplyCode(int id) { this.id = id; }
+		ReplyCode(int id) { this.id = id; }
 	}
 
 	public DFHackRPCClient(String plugin) throws IOException {
@@ -82,7 +82,7 @@ public class DFHackRPCClient {
 				throw new DFHackRPCException("invalid handshake reply magic value: " + new String(magic));
 			}
 		} catch (InterruptedException | ExecutionException e) {
-			throw new DFHackRPCException("failed to connect with RPC server", e);
+			throw new DFHackRPCException("failed to connect to RPC server", e);
 		}
 	}
 
@@ -92,6 +92,23 @@ public class DFHackRPCClient {
 	 */
 	public void connect() throws DFHackRPCException {
 		connect(DFHACK_RPC_PORT_DEFAULT);
+	}
+	
+	/**
+	 * Disconnect from server.
+	 * @throws DFHackRPCException
+	 */
+	public void disconnect() throws DFHackRPCException {
+		assert socket != null;
+		var header = createHeader(ReplyCode.RPC_REQUEST_QUIT.id, 0).rewind();
+		Future<Integer> wres = socket.write(header);
+		try {
+			wres.get();
+			socket.close();
+			socket = null;
+		} catch (InterruptedException | ExecutionException | IOException e) {
+			throw new DFHackRPCException("error while closing RPC session", e);
+		}
 	}
 	
 	private ByteBuffer createHeader(int id, int size) {
@@ -106,7 +123,7 @@ public class DFHackRPCClient {
 	private ByteBuffer sendRequest(ByteBuffer request) throws DFHackRPCException {
 		ByteBuffer result = writeAndRead(request, 8);
 		short id = result.getShort();
-		if (id != ServerReplyCode.RPC_REPLY_RESULT.id) {
+		if (id != ReplyCode.RPC_REPLY_RESULT.id) {
 			throw new DFHackRPCException("unexpected result for bind request: id="+id);
 		}
 		result.getShort();   // padding
