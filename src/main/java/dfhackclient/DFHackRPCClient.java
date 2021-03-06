@@ -1,4 +1,7 @@
-package main.java.dfhackremote;
+// (c) 2021- McArcady@gmail.com
+// This code is licensed under MIT license (see LICENSE.txt for details)
+
+package main.java.dfhackclient;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -123,7 +126,7 @@ public class DFHackRPCClient {
 	private ByteBuffer sendRequest(ByteBuffer request) throws DFHackRPCException {
 		ByteBuffer result = writeAndRead(request, 8);
 		short id = result.getShort();
-		if (id != ReplyCode.RPC_REPLY_RESULT.id) {
+		if (id != ReplyCode.RPC_REPLY_RESULT.id && id != ReplyCode.RPC_REPLY_TEXT.id) {
 			throw new DFHackRPCException("unexpected result for bind request: id="+id);
 		}
 		result.getShort();   // padding
@@ -151,14 +154,19 @@ public class DFHackRPCClient {
 	private int bindMethod(String method, String imsg, String omsg) throws DFHackRPCException {
 		assert plugin != null;
 		Builder brb = CoreBindRequest.newBuilder();
-		brb.setMethod(method).setInputMsg(plugin+"."+imsg).setOutputMsg(plugin+"."+omsg).setPlugin(plugin);
+		if (! omsg.contains(".")) {
+			omsg = plugin+"."+omsg;
+		}
+		brb.setMethod(method).setInputMsg(imsg).setOutputMsg(omsg).setPlugin(plugin);
 		ByteBuffer request = createRequest(0, brb.build());
 		ByteBuffer result = sendRequest(request);
 		CoreBindReply reply;
 		try {
 			reply = CoreBindReply.parseFrom(result);
 		} catch (InvalidProtocolBufferException e) {
-			throw new DFHackRPCException("failed to parse reply to bind request", e);
+			throw new DFHackRPCException(String.format(
+					"failed to parse reply to bind request for %s: %s -> %s",
+					method, imsg, omsg), e);
 		}
 		return reply.getAssignedId();
 	}
@@ -172,7 +180,15 @@ public class DFHackRPCClient {
 	 * @throws DFHackRPCException
 	 */
 	public ByteBuffer call(String method, Message input, String outputType) throws DFHackRPCException {
-		int id = bindMethod(method, input.getClass().getSimpleName(), outputType);
+		String imsg;
+		if (input.getClass().getPackageName().contains(plugin.toLowerCase())) {
+			// input type is declared in the package of the plugin
+			imsg = plugin;
+		} else {
+			imsg = input.getClass().getPackageName();
+		}
+		imsg += "." + input.getClass().getSimpleName();
+		int id = bindMethod(method, imsg, outputType);
 		ByteBuffer request = createRequest(id, input);
 		return sendRequest(request).rewind();
 	}	

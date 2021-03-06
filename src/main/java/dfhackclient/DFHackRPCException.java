@@ -1,4 +1,7 @@
-package main.java.dfhackremote;
+// (c) 2021- McArcady@gmail.com
+// This code is licensed under MIT license (see LICENSE.txt for details)
+
+package main.java.dfhackclient;
 
 import java.io.IOException;
 
